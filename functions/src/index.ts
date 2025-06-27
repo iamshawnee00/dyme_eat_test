@@ -257,9 +257,9 @@ export const creategroup = onCall(async (request) => {
     const uid = request.auth?.uid;
     const groupName = request.data.name;
 
-    if (!uid) throw new HttpsError("unauthenticated", "You must be logged in.");
+    if (!uid) throw new HttpsError("unauthenticated", "You must be logged in to create a group.");
     if (!groupName || typeof groupName !== "string" || groupName.length > 50) {
-        throw new HttpsError("invalid-argument", "Group name must be valid.");
+        throw new HttpsError("invalid-argument", "Group name must be a string up to 50 characters.");
     }
 
     const groupRef = await db.collection("groups").add({
