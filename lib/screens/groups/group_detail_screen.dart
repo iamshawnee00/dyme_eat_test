@@ -11,6 +11,7 @@ import 'package:dyme_eat/widgets/restaurant_search_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:dyme_eat/screens/groups/chat_screen.dart';
 
 // New provider to call our advanced recommendation function
 final groupRecommendationsProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, groupId) async {
@@ -153,6 +154,26 @@ class GroupDetailScreen extends ConsumerWidget {
             ),
             loading: () => const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator())),
             error: (e,s) => SliverToBoxAdapter(child: Center(child: Text("Could not load members."))),
+          ),
+          // --- Chat Button Section ---
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: const Text("Open Group Chat"),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => ChatScreen(groupId: group.id, groupName: group.name)),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
           ),
         ],
       ),
