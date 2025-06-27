@@ -270,6 +270,50 @@ export const creategroup = onCall(async (request) => {
     return { groupId: groupRef.id };
 });
 
+/**
+ * A callable function that adds a new member to a group.
+ * The caller must be an existing member of the group.
+ */
+export const addMemberToGroup = onCall(async (request) => {
+    const uid = request.auth?.uid;
+    const { groupId, newUserEmail } = request.data;
+
+    if (!uid) {
+        throw new HttpsError("unauthenticated", "You must be logged in.");
+    }
+    if (!groupId || !newUserEmail) {
+        throw new HttpsError("invalid-argument", "Group ID and new member's email are required.");
+    }
+
+    const groupRef = db.collection("groups").doc(groupId);
+    const groupDoc = await groupRef.get();
+
+    if (!groupDoc.exists) {
+        throw new HttpsError("not-found", "Group not found.");
+    }
+
+    const groupData = groupDoc.data()!;
+    // Security Check: Ensure the person making the request is already a member.
+    if (!groupData.members.includes(uid)) {
+        throw new HttpsError("permission-denied", "You are not a member of this group.");
+    }
+
+    // Find the new user by their email
+    const newUserQuery = await db.collection("users").where("email", "==", newUserEmail).limit(1).get();
+    if (newUserQuery.empty) {
+        throw new HttpsError("not-found", `User with email ${newUserEmail} not found.`);
+    }
+    const newMemberId = newUserQuery.docs[0].id;
+
+    // Add the new member's UID to the group's member list
+    await groupRef.update({
+        members: admin.firestore.FieldValue.arrayUnion(newMemberId),
+    });
+
+    return { success: true, message: "Member added successfully." };
+});
+
+
 export const onstorycreated = onDocumentCreated("stories/{storyId}", (event) => {
     const storyData = event.data?.data();
     if (storyData) {

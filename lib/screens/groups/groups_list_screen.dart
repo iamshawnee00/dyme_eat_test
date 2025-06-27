@@ -1,5 +1,6 @@
 import 'package:dyme_eat/providers/group_provider.dart';
 import 'package:dyme_eat/screens/groups/create_group_screen.dart';
+import 'package:dyme_eat/screens/groups/group_detail_screen.dart'; // <-- THIS IMPORT FIXES THE ERROR
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -35,7 +36,13 @@ class GroupsListScreen extends ConsumerWidget {
                 leading: const Icon(Icons.group_work_outlined),
                 title: Text(group.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text("${group.members.length} members"),
-                onTap: () { /* TODO: Navigate to GroupDetailScreen */ },
+                onTap: () {
+                  // This navigation now works correctly
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => GroupDetailScreen(group: group)),
+                  );
+                },
               );
             },
           );
