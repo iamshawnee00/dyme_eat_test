@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1081884940448",
+    "project_id": "dyme-eat-adf34",
+    "storage_bucket": "dyme-eat-adf34.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1081884940448:android:071bc39f855253cb2051c5",
+        "android_client_info": {
+          "package_name": "com.example.detest_2405"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAH0j5BZjmSSWgL9OsYbFmiubsbRNYPAbQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
