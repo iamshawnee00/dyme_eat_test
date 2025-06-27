@@ -253,92 +253,27 @@ export const onrestaurantsuggestionupdate = onDocumentUpdated("submittedRestaura
 // ==========================================================================================
 // GROUP MODULE & STORY FUNCTIONS
 // ==========================================================================================
-export const creategroup = onCall(async (request) => {
-    const uid = request.auth?.uid;
-    const groupName = request.data.name;
-
-    if (!uid) throw new HttpsError("unauthenticated", "You must be logged in to create a group.");
-    if (!groupName || typeof groupName !== "string" || groupName.length > 50) {
-        throw new HttpsError("invalid-argument", "Group name must be a string up to 50 characters.");
-    }
-
-    const groupRef = await db.collection("groups").add({
-        name: groupName, createdBy: uid,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        members: [uid], tasteSignature: {}, allergies: {},
-    });
-    return { groupId: groupRef.id };
-});
-
 /**
- * A callable function that adds a new member to a group.
- * The caller must be an existing member of the group.
+ * A helper function to recalculate a group's taste signature.
+ * This is the core of the group AI.
  */
-export const addMemberToGroup = onCall(async (request) => {
-    const uid = request.auth?.uid;
-    const { groupId, newUserEmail } = request.data;
-
-    if (!uid) {
-        throw new HttpsError("unauthenticated", "You must be logged in.");
-    }
-    if (!groupId || !newUserEmail) {
-        throw new HttpsError("invalid-argument", "Group ID and new member's email are required.");
-    }
-
-    const groupRef = db.collection("groups").doc(groupId);
-    const groupDoc = await groupRef.get();
-
-    if (!groupDoc.exists) {
-        throw new HttpsError("not-found", "Group not found.");
-    }
-
-    const groupData = groupDoc.data()!;
-    // Security Check: Ensure the person making the request is already a member.
-    if (!groupData.members.includes(uid)) {
-        throw new HttpsError("permission-denied", "You are not a member of this group.");
-    }
-
-    // Find the new user by their email
-    const newUserQuery = await db.collection("users").where("email", "==", newUserEmail).limit(1).get();
-    if (newUserQuery.empty) {
-        throw new HttpsError("not-found", `User with email ${newUserEmail} not found.`);
-    }
-    const newMemberId = newUserQuery.docs[0].id;
-
-    // Add the new member's UID to the group's member list
-    await groupRef.update({
-        members: admin.firestore.FieldValue.arrayUnion(newMemberId),
-    });
-
-    return { success: true, message: "Member added successfully." };
-});
-
-/**
- * A callable function that analyzes a group's taste preferences and suggests a restaurant.
- */
-export const getGroupRecommendation = onCall(async (request) => {
-    const uid = request.auth?.uid;
-    const { groupId } = request.data;
-
-    if (!uid) throw new HttpsError("unauthenticated", "You must be logged in.");
-    if (!groupId) throw new HttpsError("invalid-argument", "Group ID is required.");
-
+async function recalculateGroupTasteSignature(groupId: string) {
     const groupDoc = await db.collection("groups").doc(groupId).get();
-    if (!groupDoc.exists) throw new HttpsError("not-found", "Group not found.");
-
+    if (!groupDoc.exists) {
+        logger.error(`Group ${groupId} not found for recalculation.`);
+        return;
+    }
     const members = groupDoc.data()!.members as string[];
-    if (!members.includes(uid)) {
-        throw new HttpsError("permission-denied", "You are not a member of this group.");
-    }
     if (members.length === 0) {
-        throw new HttpsError("failed-precondition", "This group has no members.");
+        await db.collection("groups").doc(groupId).update({ tasteSignature: {} });
+        return; // No members, so clear the signature
     }
 
-    // --- Taste Analysis ---
     // 1. Fetch all reviews from all members of the group
     const reviewsSnapshot = await db.collection("reviews").where("authorId", "in", members).get();
     if (reviewsSnapshot.empty) {
-        throw new HttpsError("not-found", "No reviews from group members to analyze.");
+        await db.collection("groups").doc(groupId).update({ tasteSignature: {} });
+        return; // No reviews, so clear the signature
     }
 
     // 2. Aggregate all taste data
@@ -354,43 +289,147 @@ export const getGroupRecommendation = onCall(async (request) => {
         }
     });
 
-    // 3. Find the flavor with the highest average rating
-    let topFlavor = "";
-    let highestAvg = -1;
+    // 3. Calculate averages and save to the group document
+    const newTasteSignature: { [key: string]: number } = {};
     for (const [key, { total, count }] of Object.entries(aggregatedTaste)) {
-        const avg = total / count;
-        if (avg > highestAvg) {
-            highestAvg = avg;
-            topFlavor = key;
-        }
+        newTasteSignature[key] = total / count;
+    }
+    
+    await db.collection("groups").doc(groupId).update({ tasteSignature: newTasteSignature });
+    logger.log(`Successfully updated taste signature for group ${groupId}.`);
+}
+
+
+/**
+ * TRIGGER: When a user submits a review, find all groups they belong to and
+ * trigger a recalculation of each group's taste signature.
+ */
+export const onReviewCreatedForGroupUpdate = onDocumentCreated("reviews/{reviewId}", async (event) => {
+    const reviewData = event.data?.data();
+    if (!reviewData?.authorId) return;
+
+    const userGroupsSnapshot = await db.collection("groups").where("members", "array-contains", reviewData.authorId).get();
+    
+    const recalcPromises = userGroupsSnapshot.docs.map(doc => recalculateGroupTasteSignature(doc.id));
+    await Promise.all(recalcPromises);
+});
+
+
+/**
+ * TRIGGER: Triggered whenever a group's member list is updated.
+ * This ensures the Group Taste Compass is always up-to-date.
+ */
+export const onGroupUpdate = onDocumentUpdated("groups/{groupId}", async (event) => {
+    const beforeData = event.data?.before.data();
+    const afterData = event.data?.after.data();
+
+    // Check if the members array has actually changed to avoid unnecessary recalculations.
+    if (JSON.stringify(beforeData?.members) !== JSON.stringify(afterData?.members)) {
+        logger.log(`Group ${event.params.groupId} members changed. Recalculating taste signature.`);
+        await recalculateGroupTasteSignature(event.params.groupId);
+    }
+});
+
+
+/**
+ * CALLABLE: Creates a new group.
+ */
+export const creategroup = onCall(async (request) => {
+    const uid = request.auth?.uid;
+    const groupName = request.data.name;
+
+    if (!uid) throw new HttpsError("unauthenticated", "You must be logged in.");
+    if (!groupName || typeof groupName !== "string" || groupName.length > 50) {
+        throw new HttpsError("invalid-argument", "Group name must be valid.");
     }
 
-    if (!topFlavor) {
-        throw new HttpsError("not-found", "Could not determine a top flavor for the group.");
-    }
+    const groupRef = await db.collection("groups").add({
+        name: groupName, createdBy: uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        members: [uid], tasteSignature: {}, allergies: {},
+    });
+    return { groupId: groupRef.id };
+});
 
-    // --- Restaurant Recommendation ---
-    // Find a restaurant with a high score in the group's top flavor.
+/**
+ * CALLABLE: Adds a new member to a group.
+ */
+export const addMemberToGroup = onCall(async (request) => {
+    const uid = request.auth?.uid;
+    const { groupId, newUserEmail } = request.data;
+    if (!uid) throw new HttpsError("unauthenticated", "You must be logged in.");
+    if (!groupId || !newUserEmail) throw new HttpsError("invalid-argument", "Group ID and email are required.");
+    
+    const groupRef = db.collection("groups").doc(groupId);
+    const groupDoc = await groupRef.get();
+    if (!groupDoc.exists) throw new HttpsError("not-found", "Group not found.");
+    
+    const groupData = groupDoc.data()!;
+    if (!groupData.members.includes(uid)) throw new HttpsError("permission-denied", "You are not a member of this group.");
+    
+    const newUserQuery = await db.collection("users").where("email", "==", newUserEmail).limit(1).get();
+    if (newUserQuery.empty) throw new HttpsError("not-found", `User with email ${newUserEmail} not found.`);
+    
+    const newMemberId = newUserQuery.docs[0].id;
+    await groupRef.update({ members: admin.firestore.FieldValue.arrayUnion(newMemberId) });
+    return { success: true, message: "Member added successfully." };
+});
+
+/**
+ * CALLABLE: Gets a ranked list of the Top 5 restaurant recommendations for the group.
+ */
+export const getGroupRecommendations = onCall(async (request) => {
+    const { groupId } = request.data;
+    if (!groupId) throw new HttpsError("invalid-argument", "Group ID is required.");
+
+    const groupDoc = await db.collection("groups").doc(groupId).get();
+    const groupData = groupDoc.data();
+
+    if (!groupData?.tasteSignature) {
+        throw new HttpsError("not-found", "Group taste signature has not been calculated yet.");
+    }
+    
+    const tasteSignature = groupData.tasteSignature as { [key: string]: number };
+    const topFlavor = Object.keys(tasteSignature).reduce((a, b) => tasteSignature[a] > tasteSignature[b] ? a : b, "");
+
+    if (!topFlavor) throw new HttpsError("not-found", "Could not determine a top flavor for the group.");
+
     const restaurantsSnapshot = await db.collection("restaurants")
         .orderBy(`overallTasteSignature.${topFlavor}`, "desc")
-        .limit(1)
+        .limit(5)
         .get();
 
     if (restaurantsSnapshot.empty) {
         throw new HttpsError("not-found", `No restaurants found that match the group's top flavor: ${topFlavor}.`);
     }
     
-    const recommendedRestaurant = restaurantsSnapshot.docs[0].data();
+    const recommendations = restaurantsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            name: data.name,
+            address: data.address,
+            imageUrls: data.imageUrls || [],
+        };
+    });
 
-    return {
-        recommendation: {
-            name: recommendedRestaurant.name,
-            address: recommendedRestaurant.address,
-            reason: `Highly rated for the group's favorite flavor: ${topFlavor}`,
-        },
-    };
+    return { recommendations: recommendations };
 });
 
+/**
+ * CALLABLE: Handles a direct "group rating" for a restaurant.
+ */
+export const rateRestaurantForGroup = onCall(async (request) => {
+    const uid = request.auth?.uid;
+    const { groupId, restaurantId, rating } = request.data;
+    if (!uid) throw new HttpsError("unauthenticated", "You must be logged in.");
+    if (!groupId || !restaurantId || !rating) throw new HttpsError("invalid-argument", "All fields are required.");
+
+    logger.log(`Received rating of ${rating} for restaurant ${restaurantId} from user ${uid} for group ${groupId}.`);
+    await recalculateGroupTasteSignature(groupId);
+    
+    return { success: true, message: "Rating submitted and group preferences updated." };
+});
 
 export const onstorycreated = onDocumentCreated("stories/{storyId}", (event) => {
     const storyData = event.data?.data();

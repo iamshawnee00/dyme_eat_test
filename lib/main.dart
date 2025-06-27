@@ -1,10 +1,11 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dyme_eat/screens/splash_screen.dart'; // <-- Add this new import
+
 
 // Your other imports
 import 'package:dyme_eat/firebase_options.dart';
-import 'package:dyme_eat/screens/wrapper.dart';
 import 'package:dyme_eat/ui/theme.dart';
 
 void main() async {
@@ -34,7 +35,7 @@ class MyApp extends StatelessWidget {
       title: 'Dyme Eat',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      home: const AuthWrapper(),
+      home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
     );
   }

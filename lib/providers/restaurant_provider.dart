@@ -42,3 +42,23 @@ final newRestaurantsProvider = StreamProvider<List<Restaurant>>((ref) {
       .snapshots()
       .map((snapshot) => snapshot.docs.map((doc) => Restaurant.fromFirestore(doc)).toList());
 });
+
+// New provider that searches for restaurants by name.
+// It takes a search query as a parameter.
+final searchRestaurantsProvider = StreamProvider.autoDispose.family<List<Restaurant>, String>((ref, query) {
+  if (query.isEmpty) {
+    return Stream.value([]); // Return an empty list if the query is empty
+  }
+  
+  // This query finds restaurants where the name is greater than or equal to the query
+  // and less than the query plus a special character, which is a common way
+  // to implement "starts with" search in Firestore.
+  return FirebaseFirestore.instance
+      .collection('restaurants')
+      .where('name', isGreaterThanOrEqualTo: query)
+      .where('name', isLessThanOrEqualTo: '$query\uf8ff')
+      .limit(10) // Limit results for performance
+      .snapshots()
+      .map((snapshot) => snapshot.docs.map((doc) => Restaurant.fromFirestore(doc)).toList());
+});
+
