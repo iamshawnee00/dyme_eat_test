@@ -37,31 +37,38 @@ class DiscoverScreen extends ConsumerWidget {
               decoration: const InputDecoration(
                 hintText: 'Search by name...',
                 prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12.0))),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12.0))),
               ),
-              onChanged: (value) => ref.read(searchQueryProvider.notifier).state = value,
+              onChanged: (value) =>
+                  ref.read(searchQueryProvider.notifier).state = value,
             ),
           ),
 
           // --- Mood Selector ---
           Padding(
             padding: const EdgeInsets.only(left: 16.0, bottom: 8.0),
-            child: Text("Or find by mood...", style: Theme.of(context).textTheme.titleMedium),
+            child: Text("Or find by mood...",
+                style: Theme.of(context).textTheme.titleMedium),
           ),
           MoodSelector(
-            onMoodSelected: (mood) => ref.read(selectedMoodProvider.notifier).state = mood,
+            onMoodSelected: (mood) =>
+                ref.read(selectedMoodProvider.notifier).state = mood,
           ),
 
           // --- Near Me Toggle ---
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text("Sort by nearest", style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text("Sort by nearest",
+                    style: TextStyle(fontWeight: FontWeight.bold)),
                 Switch(
                   value: isNearMeToggled,
-                  onChanged: (value) => ref.read(nearMeToggleProvider.notifier).state = value,
+                  onChanged: (value) =>
+                      ref.read(nearMeToggleProvider.notifier).state = value,
                 ),
               ],
             ),
@@ -77,7 +84,10 @@ class DiscoverScreen extends ConsumerWidget {
                   return userLocationAsync.when(
                     data: (userPos) {
                       final sortedRestaurants = _filterAndSortRestaurants(
-                        restaurants, selectedMood, searchQuery, userPos,
+                        restaurants,
+                        selectedMood,
+                        searchQuery,
+                        userPos,
                       );
                       return _buildRestaurantList(sortedRestaurants);
                     },
@@ -86,14 +96,18 @@ class DiscoverScreen extends ConsumerWidget {
                   );
                 } else {
                   final filteredRestaurants = _filterAndSortRestaurants(
-                    restaurants, selectedMood, searchQuery, null,
+                    restaurants,
+                    selectedMood,
+                    searchQuery,
+                    null,
                   );
                   return _buildRestaurantList(filteredRestaurants);
                 }
               },
               loading: () => _buildShimmerLoading(),
               error: (err, stack) => Center(
-                child: Text('Could not load restaurants.\nPlease check your connection.',
+                child: Text(
+                  'Could not load restaurants.\nPlease check your connection.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
@@ -121,7 +135,9 @@ class DiscoverScreen extends ConsumerWidget {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => RestaurantDetailScreen(restaurant: restaurant)),
+              MaterialPageRoute(
+                  builder: (_) =>
+                      RestaurantDetailScreen(restaurant: restaurant)),
             );
           },
         );
@@ -137,8 +153,10 @@ class DiscoverScreen extends ConsumerWidget {
   ) {
     // Filter
     List<Restaurant> filtered = restaurants.where((r) {
-      final matchesMood = mood == null || r.cuisineTags.any((tag) => mood.associatedTags.contains(tag));
-      final matchesSearch = query.isEmpty || r.name.toLowerCase().contains(query.toLowerCase());
+      final matchesMood = mood == null ||
+          r.cuisineTags.any((tag) => mood.associatedTags.contains(tag));
+      final matchesSearch =
+          query.isEmpty || r.name.toLowerCase().contains(query.toLowerCase());
       return matchesMood && matchesSearch;
     }).toList();
 
@@ -146,12 +164,16 @@ class DiscoverScreen extends ConsumerWidget {
     if (userPosition != null) {
       filtered.sort((a, b) {
         final distanceA = Geolocator.distanceBetween(
-          userPosition.latitude, userPosition.longitude,
-          a.location.latitude, a.location.longitude,
+          userPosition.latitude,
+          userPosition.longitude,
+          a.location.latitude,
+          a.location.longitude,
         );
         final distanceB = Geolocator.distanceBetween(
-          userPosition.latitude, userPosition.longitude,
-          b.location.latitude, b.location.longitude,
+          userPosition.latitude,
+          userPosition.longitude,
+          b.location.latitude,
+          b.location.longitude,
         );
         return distanceA.compareTo(distanceB);
       });

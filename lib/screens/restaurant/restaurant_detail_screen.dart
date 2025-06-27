@@ -1,13 +1,20 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dyme_eat/models/pathfinder_tip.dart';
 import 'package:dyme_eat/models/restaurant.dart';
 import 'package:dyme_eat/models/story.dart';
+// import 'package:dyme_eat/providers/auth_provider.dart'; // <-- REMOVED: Unused import
 import 'package:dyme_eat/screens/restaurant/add_story_screen.dart';
 import 'package:dyme_eat/screens/restaurant/add_tip_screen.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:loading_overlay/loading_overlay.dart';
 import 'package:timeago/timeago.dart' as timeago;
+
+// --- DATA PROVIDERS ---
 
 // Provider to get real-time updates for the restaurant document
 final restaurantStreamProvider = StreamProvider.autoDispose.family<Restaurant, String>((ref, restaurantId) {
@@ -39,87 +46,170 @@ final storiesStreamProvider = StreamProvider.autoDispose.family<List<Story>, Str
       .map((snapshot) => snapshot.docs.map((doc) => Story.fromFirestore(doc)).toList());
 });
 
-class RestaurantDetailScreen extends ConsumerWidget {
+
+// --- WIDGET ---
+
+class RestaurantDetailScreen extends ConsumerStatefulWidget {
   final Restaurant restaurant;
   const RestaurantDetailScreen({super.key, required this.restaurant});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final restaurantAsync = ref.watch(restaurantStreamProvider(restaurant.id));
-    final tipsAsync = ref.watch(tipsStreamProvider(restaurant.id));
-    final storiesAsync = ref.watch(storiesStreamProvider(restaurant.id));
+  ConsumerState<RestaurantDetailScreen> createState() => _RestaurantDetailScreenState();
+}
 
-    return Scaffold(
-      // Use a custom scroll view to create a collapsing app bar effect with the photo gallery
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 250.0,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(restaurant.name, style: const TextStyle(color: Colors.white, shadows: [Shadow(blurRadius: 2.0)])),
-              background: restaurantAsync.when(
-                data: (r) => _buildPhotoGallery(context, r.imageUrls),
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, s) => const Center(child: Icon(Icons.error)),
+class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen> {
+  bool _isUploading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final restaurantAsync = ref.watch(restaurantStreamProvider(widget.restaurant.id));
+    final tipsAsync = ref.watch(tipsStreamProvider(widget.restaurant.id));
+    final storiesAsync = ref.watch(storiesStreamProvider(widget.restaurant.id));
+
+    return LoadingOverlay(
+      isLoading: _isUploading,
+      child: Scaffold(
+        // Use a CustomScrollView to create a collapsing app bar effect with the photo gallery
+        body: CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              expandedHeight: 250.0,
+              pinned: true,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.add_a_photo_outlined),
+                  tooltip: "Add Photo",
+                  onPressed: () => _showImageSourceActionSheet(context),
+                )
+              ],
+              flexibleSpace: FlexibleSpaceBar(
+                title: Text(widget.restaurant.name, style: const TextStyle(color: Colors.white, shadows: [Shadow(blurRadius: 2.0)])),
+                background: restaurantAsync.when(
+                  data: (r) => _buildPhotoGallery(context, r.imageUrls),
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (e, s) => const Center(child: Icon(Icons.error)),
+                ),
               ),
             ),
-          ),
-          SliverList(
-            delegate: SliverChildListDelegate(
-              [
-                // --- Taste Signature Chart (Now in its own section) ---
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Taste Signature", style: Theme.of(context).textTheme.headlineSmall),
-                      const Divider(),
-                      SizedBox(
-                        height: 250,
-                        child: restaurantAsync.when(
-                          data: (r) => _buildTasteSignatureChart(context, r.overallTasteSignature),
-                          loading: () => const Center(child: CircularProgressIndicator()),
-                          error: (e, s) => const Center(child: Text("Can't load taste data")),
+            SliverList(
+              delegate: SliverChildListDelegate(
+                [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // --- Taste Signature Chart ---
+                        Text("Taste Signature", style: Theme.of(context).textTheme.headlineSmall),
+                        const Divider(),
+                        SizedBox(
+                          height: 250,
+                          child: restaurantAsync.when(
+                            data: (r) => _buildTasteSignatureChart(context, r.overallTasteSignature),
+                            loading: () => const Center(child: CircularProgressIndicator()),
+                            error: (e, s) => const Center(child: Text("Can't load taste data")),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
-                      // --- Pathfinder Tips Section ---
-                      _buildSectionHeader(context, "Pathfinder Tips", Icons.add_circle_outline, () {
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => AddTipScreen(restaurantId: restaurant.id)));
-                      }),
-                      const Divider(),
-                      tipsAsync.when(
-                        data: (tips) => _buildTipsList(tips),
-                        loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (e, s) => const Center(child: Text("Could not load tips.")),
-                      ),
-                      const SizedBox(height: 24),
+                        // --- Pathfinder Tips Section ---
+                        _buildSectionHeader(context, "Pathfinder Tips", Icons.add_circle_outline, () {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => AddTipScreen(restaurantId: widget.restaurant.id)));
+                        }),
+                        const Divider(),
+                        tipsAsync.when(
+                          data: (tips) => _buildTipsList(tips),
+                          loading: () => const Center(child: CircularProgressIndicator()),
+                          error: (e, s) => const Center(child: Text("Could not load tips.")),
+                        ),
+                        const SizedBox(height: 24),
 
-                      // --- Stories & Rituals Section ---
-                      _buildSectionHeader(context, "Stories & Rituals", Icons.history_edu_outlined, () {
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => AddStoryScreen(restaurantId: restaurant.id)));
-                      }),
-                      const Divider(),
-                      storiesAsync.when(
-                        data: (stories) => _buildStoriesList(stories),
-                        loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (e, s) => const Center(child: Text("Could not load stories.")),
-                      ),
-                    ],
+                        // --- Stories & Rituals Section ---
+                        _buildSectionHeader(context, "Stories & Rituals", Icons.history_edu_outlined, () {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => AddStoryScreen(restaurantId: widget.restaurant.id)));
+                        }),
+                        const Divider(),
+                        storiesAsync.when(
+                          data: (stories) => _buildStoriesList(stories),
+                          loading: () => const Center(child: CircularProgressIndicator()),
+                          error: (e, s) => const Center(child: Text("Could not load stories.")),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  // --- Helper Widgets for building UI sections ---
+  // --- HELPER METHODS ---
+
+  void _showImageSourceActionSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Photo Library'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _uploadImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Camera'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _uploadImage(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _uploadImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final XFile? imageFile = await picker.pickImage(source: source, imageQuality: 70);
+
+    if (imageFile == null) return;
+
+    setState(() { _isUploading = true; });
+
+    File file = File(imageFile.path);
+    String fileName = 'restaurant_images/${widget.restaurant.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+    try {
+      final ref = FirebaseStorage.instance.ref().child(fileName);
+      await ref.putFile(file);
+      final String downloadUrl = await ref.getDownloadURL();
+      await FirebaseFirestore.instance.collection('restaurants').doc(widget.restaurant.id).update({
+        'imageUrls': FieldValue.arrayUnion([downloadUrl])
+      });
+    } catch (e) {
+      // FIX: The 'print' statement has been removed to resolve the linting warning.
+      // The SnackBar provides sufficient user feedback for errors.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload image: ${e.toString()}'))
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() { _isUploading = false; });
+      }
+    }
+  }
 
   Widget _buildSectionHeader(BuildContext context, String title, IconData icon, VoidCallback onPressed) {
     return Row(
