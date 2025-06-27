@@ -51,6 +51,10 @@ dependencies:
   timeago: ^3.6.1 # For relative time formatting
   fl_chart: ^0.66.2 # For charts and graphs
   shared_preferences: ^2.2.2 # For storing simple key-value pairs
+  cloud_functions: ^4.6.0
+  qr_flutter: ^4.1.0 # For QR code generation and scanning
+  geolocator: ^12.0.0
+  geocoding: ^3.0.0
 
 
 dev_dependencies:

@@ -1,4 +1,3 @@
-// lib/models/restaurant.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Restaurant {
@@ -7,7 +6,10 @@ class Restaurant {
   final String address;
   final GeoPoint location;
   final List<String> cuisineTags;
-  final Map<String, dynamic> overallTasteSignature; // Aggregated data
+  final Map<String, dynamic> overallTasteSignature;
+  final int reviewCount;
+  final Timestamp? createdAt;
+  final List<String> imageUrls; // <-- NEW FIELD
 
   Restaurant({
     required this.id,
@@ -16,9 +18,11 @@ class Restaurant {
     required this.location,
     required this.cuisineTags,
     required this.overallTasteSignature,
+    this.reviewCount = 0,
+    this.createdAt,
+    this.imageUrls = const [], // <-- NEW FIELD with default value
   });
 
-  // <<< Add this factory method >>>
   factory Restaurant.fromFirestore(DocumentSnapshot<Map<String, dynamic>> snapshot) {
     final data = snapshot.data()!;
     return Restaurant(
@@ -28,8 +32,10 @@ class Restaurant {
       location: data['location'] ?? const GeoPoint(0, 0),
       cuisineTags: List<String>.from(data['cuisineTags'] ?? []),
       overallTasteSignature: Map<String, dynamic>.from(data['overallTasteSignature'] ?? {}),
+      reviewCount: data['reviewCount'] ?? 0,
+      createdAt: data['createdAt'],
+      // Read the image URLs from Firestore
+      imageUrls: List<String>.from(data['imageUrls'] ?? []), // <-- NEW FIELD
     );
   }
 }
-
-// fromFirestore and toFirestore methods would be added here

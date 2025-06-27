@@ -21,3 +21,24 @@ final restaurantListProvider = StreamProvider<List<Restaurant>>((ref) {
             .toList();
       });
 });
+
+
+// New provider for trending restaurants (most reviewed)
+final trendingRestaurantsProvider = StreamProvider<List<Restaurant>>((ref) {
+  return FirebaseFirestore.instance
+      .collection('restaurants')
+      .orderBy('reviewCount', descending: true)
+      .limit(10) // We only need a few for a horizontal list
+      .snapshots()
+      .map((snapshot) => snapshot.docs.map((doc) => Restaurant.fromFirestore(doc)).toList());
+});
+
+// New provider for recently added restaurants
+final newRestaurantsProvider = StreamProvider<List<Restaurant>>((ref) {
+  return FirebaseFirestore.instance
+      .collection('restaurants')
+      .orderBy('createdAt', descending: true)
+      .limit(10)
+      .snapshots()
+      .map((snapshot) => snapshot.docs.map((doc) => Restaurant.fromFirestore(doc)).toList());
+});
