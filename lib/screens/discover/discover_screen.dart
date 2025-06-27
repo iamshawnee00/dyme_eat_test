@@ -1,17 +1,19 @@
+// ignore: unused_import
 import 'package:dyme_eat/models/restaurant.dart';
 import 'package:dyme_eat/providers/location_provider.dart';
 import 'package:dyme_eat/providers/restaurant_provider.dart';
 import 'package:dyme_eat/screens/restaurant/restaurant_detail_screen.dart';
 import 'package:dyme_eat/widgets/mood_selector.dart';
 import 'package:dyme_eat/widgets/restaurant_card.dart';
+import 'package:dyme_eat/widgets/skeleton_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shimmer/shimmer.dart';
 
-// Providers for mood and search query remain the same
+// Providers
 final selectedMoodProvider = StateProvider<Mood?>((ref) => null);
 final searchQueryProvider = StateProvider<String>((ref) => '');
-// A new StateProvider for our "Near Me" toggle
 final nearMeToggleProvider = StateProvider<bool>((ref) => false);
 
 class DiscoverScreen extends ConsumerWidget {
@@ -28,7 +30,27 @@ class DiscoverScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Discover Restaurants')),
       body: Column(
         children: [
-          // ... (Search Bar and Mood Selector UI remain the same) ...
+          // --- Search Bar ---
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: 'Search by name...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12.0))),
+              ),
+              onChanged: (value) => ref.read(searchQueryProvider.notifier).state = value,
+            ),
+          ),
+
+          // --- Mood Selector ---
+          Padding(
+            padding: const EdgeInsets.only(left: 16.0, bottom: 8.0),
+            child: Text("Or find by mood...", style: Theme.of(context).textTheme.titleMedium),
+          ),
+          MoodSelector(
+            onMoodSelected: (mood) => ref.read(selectedMoodProvider.notifier).state = mood,
+          ),
 
           // --- Near Me Toggle ---
           Padding(
@@ -39,9 +61,7 @@ class DiscoverScreen extends ConsumerWidget {
                 const Text("Sort by nearest", style: TextStyle(fontWeight: FontWeight.bold)),
                 Switch(
                   value: isNearMeToggled,
-                  onChanged: (value) {
-                    ref.read(nearMeToggleProvider.notifier).state = value;
-                  },
+                  onChanged: (value) => ref.read(nearMeToggleProvider.notifier).state = value,
                 ),
               ],
             ),
@@ -52,26 +72,32 @@ class DiscoverScreen extends ConsumerWidget {
           Expanded(
             child: restaurantsAsync.when(
               data: (restaurants) {
-                // If "Near Me" is toggled, we need the user's location to sort
                 if (isNearMeToggled) {
                   final userLocationAsync = ref.watch(userLocationProvider);
                   return userLocationAsync.when(
                     data: (userPos) {
-                      // Once we have the location, filter and sort the restaurants
-                      final sortedRestaurants = _filterAndSortRestaurants(restaurants, selectedMood, searchQuery, userPos);
+                      final sortedRestaurants = _filterAndSortRestaurants(
+                        restaurants, selectedMood, searchQuery, userPos,
+                      );
                       return _buildRestaurantList(sortedRestaurants);
                     },
-                    loading: () => const Center(child: CircularProgressIndicator()),
+                    loading: () => _buildShimmerLoading(),
                     error: (err, stack) => Center(child: Text(err.toString())),
                   );
                 } else {
-                  // If "Near Me" is off, just filter without sorting by distance
-                  final filteredRestaurants = _filterAndSortRestaurants(restaurants, selectedMood, searchQuery, null);
+                  final filteredRestaurants = _filterAndSortRestaurants(
+                    restaurants, selectedMood, searchQuery, null,
+                  );
                   return _buildRestaurantList(filteredRestaurants);
                 }
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, stack) => Center(child: Text(err.toString())),
+              loading: () => _buildShimmerLoading(),
+              error: (err, stack) => Center(
+                child: Text('Could not load restaurants.\nPlease check your connection.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
             ),
           ),
         ],
@@ -79,7 +105,8 @@ class DiscoverScreen extends ConsumerWidget {
     );
   }
 
-  // Helper function to build the ListView
+  // --- Helpers ---
+
   Widget _buildRestaurantList(List<Restaurant> restaurants) {
     if (restaurants.isEmpty) {
       return const Center(child: Text('No restaurants match your filters.'));
@@ -92,31 +119,55 @@ class DiscoverScreen extends ConsumerWidget {
         return RestaurantCard(
           restaurant: restaurant,
           onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => RestaurantDetailScreen(restaurant: restaurant)));
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => RestaurantDetailScreen(restaurant: restaurant)),
+            );
           },
         );
       },
     );
   }
 
-  // Helper function containing all filtering and sorting logic
-  List<Restaurant> _filterAndSortRestaurants(List<Restaurant> restaurants, Mood? mood, String query, Position? userPosition) {
-    // First, apply mood and search filters
+  List<Restaurant> _filterAndSortRestaurants(
+    List<Restaurant> restaurants,
+    Mood? mood,
+    String query,
+    Position? userPosition,
+  ) {
+    // Filter
     List<Restaurant> filtered = restaurants.where((r) {
       final matchesMood = mood == null || r.cuisineTags.any((tag) => mood.associatedTags.contains(tag));
       final matchesSearch = query.isEmpty || r.name.toLowerCase().contains(query.toLowerCase());
       return matchesMood && matchesSearch;
     }).toList();
 
-    // If we have a user position, sort by distance
+    // Sort by distance if location is provided
     if (userPosition != null) {
       filtered.sort((a, b) {
-        final distanceA = Geolocator.distanceBetween(userPosition.latitude, userPosition.longitude, a.location.latitude, a.location.longitude);
-        final distanceB = Geolocator.distanceBetween(userPosition.latitude, userPosition.longitude, b.location.latitude, b.location.longitude);
+        final distanceA = Geolocator.distanceBetween(
+          userPosition.latitude, userPosition.longitude,
+          a.location.latitude, a.location.longitude,
+        );
+        final distanceB = Geolocator.distanceBetween(
+          userPosition.latitude, userPosition.longitude,
+          b.location.latitude, b.location.longitude,
+        );
         return distanceA.compareTo(distanceB);
       });
     }
 
     return filtered;
+  }
+
+  Widget _buildShimmerLoading() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: ListView.builder(
+        itemCount: 5,
+        itemBuilder: (_, __) => const SkeletonCard(),
+      ),
+    );
   }
 }
