@@ -1,8 +1,13 @@
 import 'package:cloud_functions/cloud_functions.dart';
+// ignore: unused_import
+import 'package:dyme_eat/models/app_user.dart';
 import 'package:dyme_eat/models/group.dart';
+import 'package:dyme_eat/providers/user_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class GroupDetailScreen extends StatelessWidget {
+// Convert the widget to a ConsumerWidget to use Riverpod
+class GroupDetailScreen extends ConsumerWidget {
   final Group group;
   const GroupDetailScreen({super.key, required this.group});
 
@@ -30,7 +35,7 @@ class GroupDetailScreen extends StatelessWidget {
                     'newUserEmail': emailController.text.trim(),
                   });
                   if(context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Member added! (Refresh to see update)")));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Member added!")));
                     Navigator.of(context).pop();
                   }
                 } catch (e) {
@@ -48,7 +53,10 @@ class GroupDetailScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the new provider to get the profiles of the group members
+    final membersAsync = ref.watch(groupMembersProvider(group.members));
+
     return Scaffold(
       appBar: AppBar(
         title: Text(group.name),
@@ -60,16 +68,30 @@ class GroupDetailScreen extends StatelessWidget {
           )
         ],
       ),
-      body: ListView.builder(
-        itemCount: group.members.length,
-        itemBuilder: (context, index) {
-          final memberId = group.members[index];
-          // In a real app, you would use this ID to fetch the member's full profile
-          return ListTile(
-            leading: const Icon(Icons.person_outline),
-            title: Text("User ID: ${memberId.substring(0, 8)}..."), // Show a snippet of the ID
+      // Use .when to handle loading/error states for the member list
+      body: membersAsync.when(
+        data: (members) {
+          if (members.isEmpty) {
+            return const Center(child: Text("This group has no members."));
+          }
+          return ListView.builder(
+            itemCount: members.length,
+            itemBuilder: (context, index) {
+              final member = members[index];
+              return ListTile(
+                leading: CircleAvatar(
+                  // Display the user's photo, or a placeholder icon
+                  backgroundImage: member.photoURL != null ? NetworkImage(member.photoURL!) : null,
+                  child: member.photoURL == null ? const Icon(Icons.person_outline) : null,
+                ),
+                title: Text(member.displayName ?? "Unknown User"),
+                subtitle: Text(member.email ?? "No email"),
+              );
+            },
           );
         },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => const Center(child: Text("Could not load member profiles.")),
       ),
     );
   }

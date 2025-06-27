@@ -28,3 +28,20 @@ final userProvider = StreamProvider<AppUser?>((ref) {
         return null;
       });
 });
+
+
+// A new provider that fetches the user profiles for a given list of member IDs.
+final groupMembersProvider = FutureProvider.autoDispose.family<List<AppUser>, List<String>>((ref, memberIds) async {
+  if (memberIds.isEmpty) {
+    return [];
+  }
+  final firestore = FirebaseFirestore.instance;
+  // Fetch all user documents where the UID is in our list of memberIds.
+  final querySnapshot = await firestore
+      .collection('users')
+      .where(FieldPath.documentId, whereIn: memberIds)
+      .get();
+  
+  // Convert the documents to AppUser objects.
+  return querySnapshot.docs.map((doc) => AppUser.fromFirestore(doc, null)).toList();
+});
