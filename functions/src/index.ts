@@ -313,6 +313,84 @@ export const addMemberToGroup = onCall(async (request) => {
     return { success: true, message: "Member added successfully." };
 });
 
+/**
+ * A callable function that analyzes a group's taste preferences and suggests a restaurant.
+ */
+export const getGroupRecommendation = onCall(async (request) => {
+    const uid = request.auth?.uid;
+    const { groupId } = request.data;
+
+    if (!uid) throw new HttpsError("unauthenticated", "You must be logged in.");
+    if (!groupId) throw new HttpsError("invalid-argument", "Group ID is required.");
+
+    const groupDoc = await db.collection("groups").doc(groupId).get();
+    if (!groupDoc.exists) throw new HttpsError("not-found", "Group not found.");
+
+    const members = groupDoc.data()!.members as string[];
+    if (!members.includes(uid)) {
+        throw new HttpsError("permission-denied", "You are not a member of this group.");
+    }
+    if (members.length === 0) {
+        throw new HttpsError("failed-precondition", "This group has no members.");
+    }
+
+    // --- Taste Analysis ---
+    // 1. Fetch all reviews from all members of the group
+    const reviewsSnapshot = await db.collection("reviews").where("authorId", "in", members).get();
+    if (reviewsSnapshot.empty) {
+        throw new HttpsError("not-found", "No reviews from group members to analyze.");
+    }
+
+    // 2. Aggregate all taste data
+    const aggregatedTaste: { [key: string]: { total: number, count: number } } = {};
+    reviewsSnapshot.forEach((doc) => {
+        const review = doc.data();
+        if (review.tasteDialData) {
+            for (const [key, value] of Object.entries(review.tasteDialData as { [key: string]: number })) {
+                if (!aggregatedTaste[key]) aggregatedTaste[key] = { total: 0, count: 0 };
+                aggregatedTaste[key].total += value;
+                aggregatedTaste[key].count += 1;
+            }
+        }
+    });
+
+    // 3. Find the flavor with the highest average rating
+    let topFlavor = "";
+    let highestAvg = -1;
+    for (const [key, { total, count }] of Object.entries(aggregatedTaste)) {
+        const avg = total / count;
+        if (avg > highestAvg) {
+            highestAvg = avg;
+            topFlavor = key;
+        }
+    }
+
+    if (!topFlavor) {
+        throw new HttpsError("not-found", "Could not determine a top flavor for the group.");
+    }
+
+    // --- Restaurant Recommendation ---
+    // Find a restaurant with a high score in the group's top flavor.
+    const restaurantsSnapshot = await db.collection("restaurants")
+        .orderBy(`overallTasteSignature.${topFlavor}`, "desc")
+        .limit(1)
+        .get();
+
+    if (restaurantsSnapshot.empty) {
+        throw new HttpsError("not-found", `No restaurants found that match the group's top flavor: ${topFlavor}.`);
+    }
+    
+    const recommendedRestaurant = restaurantsSnapshot.docs[0].data();
+
+    return {
+        recommendation: {
+            name: recommendedRestaurant.name,
+            address: recommendedRestaurant.address,
+            reason: `Highly rated for the group's favorite flavor: ${topFlavor}`,
+        },
+    };
+});
+
 
 export const onstorycreated = onDocumentCreated("stories/{storyId}", (event) => {
     const storyData = event.data?.data();
