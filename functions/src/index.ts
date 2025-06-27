@@ -129,6 +129,61 @@ export const processOnboardingQuiz = onCall(async (request) => {
 
 /**
  * ==========================================================================================
+ * PERSONALIZED RECOMMENDATION FUNCTIONS
+ * ==========================================================================================
+ */
+
+/**
+ * Gets personalized restaurant recommendations based on a user's Foodie MBTI.
+ */
+export const getMbtiRecommendations = onCall(async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "You must be logged in.");
+
+    const userDoc = await db.collection("users").doc(uid).get();
+    const foodiePersonality = userDoc.data()?.foodiePersonality;
+
+    if (!foodiePersonality) {
+        throw new HttpsError("not-found", "User has no Foodie Personality yet.");
+    }
+
+    // --- Map MBTI to relevant tags (Malaysian Context) ---
+    const tagMap: { [key: string]: string[] } = {
+        "CAMK": ["lepak", "yumcha"], // Raja Lepak
+        "RAKK": ["pedas-giler", "adventurous"], // Harimau Sambal
+        "RAMS": ["dessert", "authentic-taste"], // Sang Kancil Cendol
+        "CAMS": ["comfort-food", "rasa-asli"], // Pahlawan Pagi
+        // ... (add mappings for all 16 personalities)
+    };
+
+    const relevantTags = tagMap[foodiePersonality] || [];
+    if (relevantTags.length === 0) {
+        return { recommendations: [] }; // No tags for this personality, return empty
+    }
+
+    // --- Find restaurants that have any of the relevant tags ---
+    const restaurantsSnapshot = await db.collection("restaurants")
+        .where("tags", "array-contains-any", relevantTags)
+        .limit(10)
+        .get();
+        
+    const recommendations = restaurantsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            name: data.name,
+            address: data.address,
+            imageUrls: data.imageUrls || [],
+        };
+    });
+
+    return { recommendations: recommendations };
+});
+
+
+
+/**
+ * ==========================================================================================
  * PATHFINDER TIP FUNCTIONS
  * ==========================================================================================
  */
