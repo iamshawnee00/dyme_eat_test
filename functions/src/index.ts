@@ -86,6 +86,46 @@ async function recalculateTasteSignature(restaurantId: string) {
     logger.log(`Updated taste signature for restaurant ${restaurantId}`);
 }
 
+/**
+ * ==========================================================================================
+ * ONBOARDING & MBTI FUNCTIONS
+ * ==========================================================================================
+ */
+/**
+ * Calculates a user's Foodie Personality based on their quiz answers
+ * and saves their preferences and allergies.
+ */
+export const processOnboardingQuiz = onCall(async (request) => {
+    const uid = request.auth?.uid;
+    const { answers, allergies, preferences } = request.data;
+
+    if (!uid) throw new HttpsError("unauthenticated", "You must be logged in.");
+    if (!answers || !allergies || !preferences) {
+        throw new HttpsError("invalid-argument", "Quiz data is incomplete.");
+    }
+
+    // --- Simple MBTI Calculation Logic (Example) ---
+    // This logic should be expanded based on your specific quiz questions.
+    let personality = "";
+    // 1. Spontaneous vs. Planner (S/P)
+    personality += answers.q1 === "try-it" ? "S" : "P"; 
+    // 2. Traditional vs. Modern (T/M)
+    personality += answers.q2 === "rendang" ? "T" : "M";
+    // 3. Adventurous vs. Comfort (A/C)
+    personality += answers.q3 === "long-queue" ? "A" : "C";
+    // 4. Savory vs. Sweet (V/W)
+    personality += answers.q4 === "mamak" ? "V" : "W";
+    
+    // --- Update the User Document in Firestore ---
+    await db.collection("users").doc(uid).update({
+        foodiePersonality: personality,
+        allergies: allergies, // e.g., ["Seafood", "Nuts"]
+        preferences: preferences, // e.g., ["Halal", "Spicy"]
+        foodieCrestRevealed: true, // Mark quiz as complete
+    });
+
+    return { success: true, personality: personality };
+});
 
 /**
  * ==========================================================================================

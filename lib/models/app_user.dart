@@ -1,4 +1,3 @@
-// lib/models/app_user.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AppUser {
@@ -7,8 +6,10 @@ class AppUser {
   final String? displayName;
   final String? photoURL;
   final int influencePoints;
-  final String? foodiePersonality; // e.g., "TGNF"
+  final String? foodiePersonality;
   final bool foodieCrestRevealed;
+  final List<String> allergies;    // <-- NEW
+  final List<String> preferences; // <-- NEW
 
   AppUser({
     required this.uid,
@@ -18,6 +19,8 @@ class AppUser {
     this.influencePoints = 0,
     this.foodiePersonality,
     this.foodieCrestRevealed = false,
+    this.allergies = const [],    // <-- NEW
+    this.preferences = const [],  // <-- NEW
   });
 
   factory AppUser.fromFirestore(DocumentSnapshot<Map<String, dynamic>> snapshot, SnapshotOptions? options) {
@@ -30,6 +33,8 @@ class AppUser {
       influencePoints: data?['influencePoints'] ?? 0,
       foodiePersonality: data?['foodiePersonality'],
       foodieCrestRevealed: data?['foodieCrestRevealed'] ?? false,
+      allergies: List<String>.from(data?['allergies'] ?? []),      // <-- NEW
+      preferences: List<String>.from(data?['preferences'] ?? []),  // <-- NEW
     );
   }
 
@@ -41,6 +46,8 @@ class AppUser {
       "influencePoints": influencePoints,
       if (foodiePersonality != null) "foodiePersonality": foodiePersonality,
       "foodieCrestRevealed": foodieCrestRevealed,
+      "allergies": allergies,        // <-- NEW
+      "preferences": preferences,    // <-- NEW
     };
   }
 }
