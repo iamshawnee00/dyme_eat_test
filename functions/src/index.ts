@@ -586,30 +586,38 @@ export const generateFoodieCardData = onCall(async (request) => {
     return cardData;
 });
 
-export const generatepkpassdata = onCall(async (request) => {
-    const uid = request.auth?.uid;
-    if (!uid) throw new HttpsError("unauthenticated", "Authentication required.");
-    
-    const userDoc = await db.collection("users").doc(uid).get();
-    if (!userDoc.exists) throw new HttpsError("not-found", "User data not found.");
-    
-    const userData = userDoc.data()!;
-    const reviewsSnapshot = await db.collection("reviews").where("authorId", "==", uid).get();
-    const flavorCounts: { [key: string]: number } = {};
-    reviewsSnapshot.forEach((doc) => {
-        const tasteData = doc.data().tasteDialData as { [key: string]: number } || {};
-        Object.keys(tasteData).forEach((key) => {
-            flavorCounts[key] = (flavorCounts[key] || 0) + 1;
-        });
-    });
-    const topFlavors = Object.entries(flavorCounts)
-        .sort(([, a], [, b]) => b - a).slice(0, 3).map(([key]) => key);
+/**
+ * ==========================================================================================
+ * WALLET INTEGRATION (PKPASS) FUNCTIONS
+ * ==========================================================================================
+ */
 
+/**
+ * Prepares the data payload required to generate a .pkpass file for Apple Wallet.
+ *
+ * NOTE: This function *prepares* the data. A separate, dedicated service with access
+ * to Apple's signing certificates is required to perform the actual .pkpass
+ * file creation and signing. This function returns the JSON that service would need.
+ */
+export const generatePkpassData = onCall(async (request) => {
+    const uid = request.auth?.uid;
+
+    if (!uid) {
+        throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+
+    const userDoc = await db.collection("users").doc(uid).get();
+    if (!userDoc.exists) {
+        throw new HttpsError("not-found", "User data not found.");
+    }
+    const userData = userDoc.data()!;
+
+    // This data structure mirrors the fields you would define in a pass.json file.
     const passJson = {
         formatVersion: 1,
-        passTypeIdentifier: "pass.com.dyme.eat.foodie-card",
+        passTypeIdentifier: "pass.com.dyme.eat.foodie-card", // Your Pass Type ID from Apple
         serialNumber: `DYME-${uid.substring(0, 10)}`,
-        teamIdentifier: "YOUR_TEAM_ID",
+        teamIdentifier: "YOUR_TEAM_ID", // Your Apple Developer Team ID
         organizationName: "Dyme Eat",
         description: "Dyme Eat Foodie Card",
         logoText: "Dyme Eat",
@@ -617,13 +625,38 @@ export const generatepkpassdata = onCall(async (request) => {
         backgroundColor: "rgb(30, 30, 30)",
         labelColor: "rgb(180, 180, 180)",
         storeCard: {
-            primaryFields: [{ key: "name", label: "FOODIE", value: userData.displayName || "N/A" }],
-            secondaryFields: [{ key: "crest", label: "FOODIE CREST", value: userData.foodiePersonality || "Not Revealed" }],
-            auxiliaryFields: [{ key: "ip", label: "INFLUENCE", value: `${userData.influencePoints || 0} IP` }],
+            primaryFields: [
+                {
+                    key: "name",
+                    label: "FOODIE",
+                    value: userData.displayName || "N/A",
+                },
+            ],
+            secondaryFields: [
+                {
+                    key: "crest",
+                    label: "FOODIE CREST",
+                    value: userData.foodiePersonality || "Not Revealed",
+                },
+            ],
+            auxiliaryFields: [
+                {
+                    key: "ip",
+                    label: "INFLUENCE",
+                    value: `${userData.influencePoints || 0} IP`,
+                },
+            ],
             backFields: [
-                { key: "userId", label: "User ID", value: uid },
-                { key: "topFlavors", label: "TOP FLAVORS", value: topFlavors.join(", ") || "Not yet rated" },
-                { key: "info", label: "About", value: "This card represents your unique taste profile..." },
+                {
+                    key: "userId",
+                    label: "User ID",
+                    value: uid,
+                },
+                {
+                    key: "info",
+                    label: "About",
+                    value: "This card represents your unique taste profile in the Dyme Eat ecosystem. Share it to connect with other foodies!",
+                },
             ],
         },
         barcode: {
@@ -633,12 +666,16 @@ export const generatepkpassdata = onCall(async (request) => {
         },
     };
 
+    // In a real implementation, you would send this `passJson` to your signing service.
+    // Here, we return a success message and a placeholder for the download URL.
     return {
         success: true,
         message: "Pass data generated successfully.",
+        // This URL would point to your signing service which returns the .pkpass file.
         downloadUrl: `https://your-pkpass-service.com/generate?data=${encodeURIComponent(JSON.stringify(passJson))}`,
     };
 });
+
 
 
 

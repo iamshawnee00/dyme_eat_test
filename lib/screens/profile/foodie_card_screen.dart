@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:dyme_eat/utils/mbti_characters.dart'; // <-- THIS IMPORT FIXES THE ERROR
+import 'package:dyme_eat/utils/mbti_characters.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart'; // <-- Add this import
 
 // Provider to call our backend function and fetch the card data
 final foodieCardProvider = FutureProvider<Map<String, dynamic>>((ref) async {
@@ -23,7 +24,7 @@ class FoodieCardScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('My Foodie Card')),
       body: Center(
         child: cardDataAsync.when(
-          data: (data) => _buildCard(context, data),
+          data: (data) => _buildCard(context, data, ref),
           loading: () => const CircularProgressIndicator(),
           error: (err, stack) => Text('Error: $err'),
         ),
@@ -31,8 +32,8 @@ class FoodieCardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCard(BuildContext context, Map<String, dynamic> data) {
-    final cardDataJson = jsonEncode(data); // Encode the data for the QR code
+  Widget _buildCard(BuildContext context, Map<String, dynamic> data, WidgetRef ref) {
+    final cardDataJson = jsonEncode(data);
     final character = foodieCharacters[data['crest']] ?? foodieCharacters['default']!;
 
     return Padding(
@@ -47,7 +48,7 @@ class FoodieCardScreen extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Header section with user info
+                // ... (Header and QR Code sections remain the same) ...
                 Column(
                   children: [
                     CircleAvatar(radius: 40, child: Icon(character.icon, size: 40)),
@@ -58,15 +59,9 @@ class FoodieCardScreen extends ConsumerWidget {
                     Text('${data['ip'] ?? 0} IP', style: const TextStyle(fontSize: 16, color: Colors.grey)),
                   ],
                 ),
+                QrImageView(data: cardDataJson, version: QrVersions.auto, size: 150.0),
                 
-                // QR Code in the middle
-                QrImageView(
-                  data: cardDataJson,
-                  version: QrVersions.auto,
-                  size: 150.0,
-                ),
-
-                // Footer section with top flavors
+                // --- Footer section with updated button ---
                 Column(
                   children: [
                     const Text("Top Flavors", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -75,8 +70,26 @@ class FoodieCardScreen extends ConsumerWidget {
                     const SizedBox(height: 24),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.account_balance_wallet_outlined),
-                      label: const Text("Add to Wallet (Coming Soon)"),
-                      onPressed: null, // Disabled for now, to be implemented later
+                      label: const Text("Add to Apple / Google Wallet"),
+                      onPressed: () async {
+                        try {
+                          final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable('generatePkpassData');
+                          final result = await callable.call();
+                          final urlString = result.data['downloadUrl'];
+                          if (urlString != null) {
+                            final Uri url = Uri.parse(urlString);
+                            if (await canLaunchUrl(url)) {
+                              await launchUrl(url, mode: LaunchMode.externalApplication);
+                            } else {
+                              throw 'Could not launch $url';
+                            }
+                          }
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text("Error generating pass: ${e.toString()}")),
+                          );
+                        }
+                      },
                     ),
                   ],
                 )
