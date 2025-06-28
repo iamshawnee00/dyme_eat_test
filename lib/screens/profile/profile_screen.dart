@@ -71,9 +71,7 @@ class ProfileScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 24),
 
-        // --- User Stats / Trophy Case ---
-        _buildTrophyCase(context, appUser),
-        const SizedBox(height: 24),
+        
 
         // --- Foodie Card Button ---
         ElevatedButton.icon(
@@ -87,6 +85,11 @@ class ProfileScreen extends ConsumerWidget {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodieCardScreen()));
           },
         ),
+
+        // --- User Stats / Trophy Case ---
+        const SizedBox(height: 24),
+        const Divider(),
+        _buildTrophyCase(context, appUser),     
       ],
     );
   }

@@ -1,3 +1,4 @@
+import 'package:dyme_eat/models/restaurant.dart';
 import 'package:dyme_eat/providers/restaurant_provider.dart';
 import 'package:dyme_eat/providers/user_provider.dart';
 import 'package:dyme_eat/utils/mbti_characters.dart';
@@ -54,18 +55,22 @@ class HomeScreen extends ConsumerWidget {
 
             // --- Existing Sections ---
             trendingAsync.when(
-              data: (restaurants) => FeaturedRestaurantList(
-                title: "Trending Restaurants",
-                restaurants: restaurants,
-              ),
+              data: (restaurants) => restaurants.isEmpty 
+                  ? const SizedBox.shrink()
+                  : FeaturedRestaurantList(
+                      title: "Trending Restaurants",
+                      restaurants: restaurants,
+                    ),
               loading: () => const Center(heightFactor: 10, child: CircularProgressIndicator()),
               error: (e, s) => const SizedBox.shrink(),
             ),
             newAsync.when(
-              data: (restaurants) => FeaturedRestaurantList(
-                title: "Recently Added",
-                restaurants: restaurants,
-              ),
+              data: (restaurants) => restaurants.isEmpty
+                  ? const SizedBox.shrink()
+                  : FeaturedRestaurantList(
+                      title: "Recently Added",
+                      restaurants: restaurants,
+                    ),
               loading: () => const Center(heightFactor: 10, child: CircularProgressIndicator()),
               error: (e, s) => const SizedBox.shrink(),
             ),

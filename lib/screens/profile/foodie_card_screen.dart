@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:dyme_eat/utils/mbti_characters.dart'; // <-- THIS IMPORT FIXES THE ERROR
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -32,7 +33,6 @@ class FoodieCardScreen extends ConsumerWidget {
 
   Widget _buildCard(BuildContext context, Map<String, dynamic> data) {
     final cardDataJson = jsonEncode(data); // Encode the data for the QR code
-    // Get the character details from the user's MBTI
     final character = foodieCharacters[data['crest']] ?? foodieCharacters['default']!;
 
     return Padding(
@@ -50,9 +50,8 @@ class FoodieCardScreen extends ConsumerWidget {
                 // Header section with user info
                 Column(
                   children: [
-                    // MODIFIED: Display the character's icon
-                  CircleAvatar(radius: 40, child: Icon(character.icon, size: 40)),
-                  const SizedBox(height: 12),
+                    CircleAvatar(radius: 40, child: Icon(character.icon, size: 40)),
+                    const SizedBox(height: 12),
                     Text(data['name'] ?? 'Foodie', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
                     Text('Crest: ${data['crest'] ?? 'N/A'}', style: TextStyle(fontSize: 18, color: Theme.of(context).colorScheme.primary)),
