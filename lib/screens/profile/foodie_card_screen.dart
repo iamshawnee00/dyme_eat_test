@@ -4,7 +4,7 @@ import 'package:dyme_eat/utils/mbti_characters.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:url_launcher/url_launcher.dart'; // <-- Add this import
+import 'package:url_launcher/url_launcher.dart';
 
 // Provider to call our backend function and fetch the card data
 final foodieCardProvider = FutureProvider<Map<String, dynamic>>((ref) async {
@@ -48,7 +48,6 @@ class FoodieCardScreen extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // ... (Header and QR Code sections remain the same) ...
                 Column(
                   children: [
                     CircleAvatar(radius: 40, child: Icon(character.icon, size: 40)),
@@ -60,8 +59,6 @@ class FoodieCardScreen extends ConsumerWidget {
                   ],
                 ),
                 QrImageView(data: cardDataJson, version: QrVersions.auto, size: 150.0),
-                
-                // --- Footer section with updated button ---
                 Column(
                   children: [
                     const Text("Top Flavors", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -85,9 +82,12 @@ class FoodieCardScreen extends ConsumerWidget {
                             }
                           }
                         } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text("Error generating pass: ${e.toString()}")),
-                          );
+                          // FIX: Check if the context is still mounted before showing the SnackBar.
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Error generating pass: ${e.toString()}")),
+                            );
+                          }
                         }
                       },
                     ),
