@@ -1,5 +1,6 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // <-- Add this import
 
 class CreateGroupScreen extends StatefulWidget {
   const CreateGroupScreen({super.key});
@@ -21,6 +22,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // FIX: Force a refresh of the user's auth token before the call.
+      await FirebaseAuth.instance.currentUser?.getIdToken(true);
+      
       final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable('creategroup');
       await callable.call(<String, dynamic>{'name': _nameController.text.trim()});
       

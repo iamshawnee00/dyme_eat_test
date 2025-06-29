@@ -11,6 +11,9 @@ class Restaurant {
   final Timestamp? createdAt;
   final List<String> imageUrls;
   final List<String> tags; // <-- NEW FIELD
+  final String? operatingHours; // e.g., "10:00 AM - 10:00 PM"
+  final String? website;
+  final String? phoneNumber;
 
   Restaurant({
     required this.id,
@@ -23,6 +26,9 @@ class Restaurant {
     this.createdAt,
     this.imageUrls = const [],
     this.tags = const [], // <-- NEW with default value
+    this.operatingHours,
+    this.website,
+    this.phoneNumber,
   });
 
   // Factory constructor to create an instance from a Firestore document
@@ -39,6 +45,9 @@ class Restaurant {
       createdAt: data['createdAt'],
       imageUrls: List<String>.from(data['imageUrls'] ?? []),
       tags: List<String>.from(data['tags'] ?? []), // <-- NEW
+      operatingHours: data['operatingHours'], // Can be null
+      website: data['website'],
+      phoneNumber: data['phoneNumber'],
     );
   }
 

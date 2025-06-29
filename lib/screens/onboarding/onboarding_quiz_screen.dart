@@ -1,8 +1,8 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:dyme_eat/screens/wrapper.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // <-- Add this important import
 import 'package:flutter/material.dart';
 
-// This screen guides the user through the onboarding quiz.
 class OnboardingQuizScreen extends StatefulWidget {
   const OnboardingQuizScreen({super.key});
 
@@ -12,12 +12,10 @@ class OnboardingQuizScreen extends StatefulWidget {
 
 class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
   final PageController _pageController = PageController();
-  // FIX: These variables can be final because we are modifying the contents of the
-  // collections, not reassigning the variables themselves.
   final Map<String, String> _answers = {};
   final List<String> _allergies = [];
-  
-  // Dummy data for now
+  bool _isLoading = false;
+
   final List<String> _allergyOptions = ["Seafood", "Nuts", "Dairy", "Gluten", "Belacan"];
 
   void _onAnswerSelected(String questionId, String answerKey) {
@@ -28,20 +26,32 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
   }
 
   Future<void> _submitQuiz() async {
+    setState(() => _isLoading = true);
     try {
-        final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable('processOnboardingQuiz');
-        await callable.call({
-            'answers': _answers,
-            'allergies': _allergies,
-            'preferences': [], // Add preferences page later
-        });
-        if (mounted) {
-            Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const AuthWrapper()));
-        }
-    } catch(e) {
-        if(mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: ${e.toString()}")));
-        }
+      // FIX: Force a refresh of the user's auth token before calling the function.
+      // This ensures the backend recognizes the user as authenticated.
+      await FirebaseAuth.instance.currentUser?.getIdToken(true);
+
+      final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable('processOnboardingQuiz');
+      await callable.call({
+        'answers': _answers,
+        'allergies': _allergies,
+        'preferences': [], // Add preferences page later
+      });
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AuthWrapper()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: ${e.toString()}")));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -50,7 +60,7 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
     return Scaffold(
       body: PageView(
         controller: _pageController,
-        physics: const NeverScrollableScrollPhysics(), // Disable swiping
+        physics: const NeverScrollableScrollPhysics(),
         children: [
           _buildQuestionPage("q1", "A new, mysterious food truck pulls up...", "Cuba Dulu!", "Check Reviews First", "try-it", "check-reviews"),
           _buildQuestionPage("q2", "Nasi Lemak: The ultimate debate.", "Ayam Goreng Berempah", "Rendang Daging", "ayam-goreng", "rendang"),
@@ -79,31 +89,33 @@ class _OnboardingQuizScreenState extends State<OnboardingQuizScreen> {
 
   Widget _buildAllergyPage() {
     return Center(
-        child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text("Ada alahan makanan?", style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
-                const SizedBox(height: 20),
-                Wrap(
-                    spacing: 8.0,
-                    children: _allergyOptions.map((allergy) {
-                        final isSelected = _allergies.contains(allergy);
-                        return FilterChip(
-                            label: Text(allergy),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                                setState(() {
-                                    if (selected) { _allergies.add(allergy); } 
-                                    else { _allergies.remove(allergy); }
-                                });
-                            },
-                        );
-                    }).toList(),
-                ),
-                const SizedBox(height: 40),
-                ElevatedButton(onPressed: _submitQuiz, child: const Text("Finish Setup")),
-            ]),
-        ),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Text("Ada alahan makanan?", style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 8.0,
+            children: _allergyOptions.map((allergy) {
+              final isSelected = _allergies.contains(allergy);
+              return FilterChip(
+                label: Text(allergy),
+                selected: isSelected,
+                onSelected: (selected) {
+                  setState(() {
+                    if (selected) { _allergies.add(allergy); } 
+                    else { _allergies.remove(allergy); }
+                  });
+                },
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 40),
+          _isLoading
+              ? const CircularProgressIndicator()
+              : ElevatedButton(onPressed: _submitQuiz, child: const Text("Finish Setup")),
+        ]),
+      ),
     );
   }
 }

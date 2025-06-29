@@ -1,4 +1,3 @@
-// screens/auth/login_screen.dart
 import 'package:dyme_eat/providers/auth_provider.dart';
 import 'package:dyme_eat/screens/auth/signup_screen.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +26,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _signIn() async {
+    // Ensure the form is valid before proceeding
     if (_formKey.currentState?.validate() ?? false) {
       setState(() {
         _isLoading = true;
@@ -39,10 +39,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               email: _emailController.text.trim(),
               password: _passwordController.text.trim(),
             );
-        // Navigation will be handled by the AuthWrapper upon successful sign-in
-      } catch (e) {
+        // Navigation will be handled by the AuthWrapper upon successful sign-in, so we don't need to navigate here.
+      } on Exception catch (e) {
+        // Catch any exception from our service and display a clean error message.
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = e.toString().replaceAll("Exception: ", "");
         });
       } finally {
         if (mounted) {
@@ -68,10 +69,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               children: [
                 Text(
                   'Welcome Back!',
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
@@ -83,13 +81,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const SizedBox(height: 40),
                 TextFormField(
                   controller: _emailController,
-                  decoration: const InputDecoration(
-                      labelText: 'Email', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
-                    if (value == null ||
-                        value.isEmpty ||
-                        !value.contains('@')) {
+                    if (value == null || value.isEmpty || !value.contains('@')) {
                       return 'Please enter a valid email';
                     }
                     return null;
@@ -98,8 +93,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _passwordController,
-                  decoration: const InputDecoration(
-                      labelText: 'Password', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder()),
                   obscureText: true,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -109,13 +103,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   },
                 ),
                 const SizedBox(height: 24),
+                // This ensures any error message from Firebase is always shown to the user.
                 if (_errorMessage != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16.0),
                     child: Text(
                       _errorMessage!,
-                      style:
-                          TextStyle(color: Theme.of(context).colorScheme.error),
+                      style: TextStyle(color: Theme.of(context).colorScheme.error),
                       textAlign: TextAlign.center,
                     ),
                   ),

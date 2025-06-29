@@ -29,7 +29,12 @@ const db = admin.firestore();
  * 3. Checks if the user has met the criteria for the Revelation Event.
  */
 
-export const onreviewcreated = onDocumentCreated("reviews/{reviewId}", async (event) => {
+export const onreviewcreated = onDocumentCreated(
+    {
+        region: "asia-southeast1", // <== This is important
+        document: "reviews/{reviewId}",
+    },
+    async (event) => {
     const snap = event.data;
     if (!snap) {
         logger.error("No data associated with the review event.");
@@ -108,13 +113,13 @@ export const processOnboardingQuiz = onCall(async (request) => {
     // This logic should be expanded based on your specific quiz questions.
     let personality = "";
     // 1. Spontaneous vs. Planner (S/P)
-    personality += answers.q1 === "try-it" ? "S" : "P"; 
+    personality += answers.q1 === "try-it" ? "C" : "R"; 
     // 2. Traditional vs. Modern (T/M)
-    personality += answers.q2 === "rendang" ? "T" : "M";
+    personality += answers.q2 === "rendang" ? "A" : "M";
     // 3. Adventurous vs. Comfort (A/C)
-    personality += answers.q3 === "long-queue" ? "A" : "C";
+    personality += answers.q3 === "long-queue" ? "K" : "S";
     // 4. Savory vs. Sweet (V/W)
-    personality += answers.q4 === "mamak" ? "V" : "W";
+    personality += answers.q4 === "mamak" ? "M" : "K";
     
     // --- Update the User Document in Firestore ---
     await db.collection("users").doc(uid).update({
