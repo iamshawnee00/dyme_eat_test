@@ -29,7 +29,7 @@ class AuthWrapper extends ConsumerWidget {
             // This is the moment right after sign-up, before the Firestore doc is created.
             // Show a loading spinner while we wait for the doc to be written.
             if (appUser == null) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              return const Scaffold(body: Center(child: CircularProgressIndicator(key: Key('user_doc_loading'))));
             }
             
             // The user doc exists. Now, check if they've completed the quiz.
@@ -40,11 +40,11 @@ class AuthWrapper extends ConsumerWidget {
             // If they have a personality, they are fully onboarded.
             return const Shell(); 
           },
-          loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+          loading: () => const Scaffold(body: Center(child: CircularProgressIndicator(key: Key('user_doc_initial_loading')))),
           error: (e, s) => Scaffold(body: Center(child: Text("Error loading profile: ${e.toString()}"))),
         );
       },
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator(key: Key('auth_state_loading')))),
       error: (e, s) => Scaffold(body: Center(child: Text("Authentication Error: ${e.toString()}"))),
     );
   }

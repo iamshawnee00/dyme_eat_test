@@ -69,3 +69,4 @@ class DefaultFirebaseOptions {
     iosBundleId: 'YOUR_IOS_BUNDLE_ID',
   );
 }
+ 
